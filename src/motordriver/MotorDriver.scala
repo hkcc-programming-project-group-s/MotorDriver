@@ -4,7 +4,7 @@ import java.io._
 
 import neuroevolution.NeuroEvolution
 import neuroevolution.geneticalgorithm.ProblemType.Minimize
-import neuroevolution.neuralnetwork.TweakedSin
+import neuroevolution.neuralnetwork.TweakedCosine
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -37,12 +37,12 @@ class MotorDriver extends Thread {
    * input: direction (range from -1 to 1)
    * output: left & right motor pwm (range from -1 to 1)
    */
-  val ai = new NeuroEvolution(n_Bit_Weight = 8, n_Bit_Bias = 8, numberOfNodes = Array(1, 16, 16, 2), activationFunction = TweakedSin,
-    popSize = 1024, pSelection = 0.25, pMutation = 0.1, aMutation = 0.03,
+  val ai = new NeuroEvolution(n_Bit_Weight = 3, n_Bit_Bias = 3, numberOfNodes = Array(1, 8, 16, 8, 2), activationFunction = TweakedCosine,
+    popSize = 32, pSelection = 0.1, pMutation = 0.1, aMutation = 0.03, parent_immutable = false,
     get_perceptron_inputs = get_perceptron_inputs, eval_perceptron_function = eval_perceptron_function,
     problemType = Minimize,
-    diversityWeight = 0.1,
-    LOOP_INTERVAL = 1)
+    diversityWeight = 0.8,
+    LOOP_INTERVAL = 0)
 
   def get_perceptron_inputs: Array[Array[Double]] = {
     var inputs = ArrayBuffer.empty[Array[Double]]
@@ -63,7 +63,8 @@ class MotorDriver extends Thread {
     //val log=new ObjectOutputStream(new FileOutputStream("MotorDriver.perceptron"))
     while (true) {
       val best = ai.ga.getBestGene
-      println("Best fitness: " + best.getFitness)
+      println("Round: "+ai.ga.round)
+      println("Best fitness: " + Math.sqrt(best.getFitness / 2d / sampleCommandPairs.length))
       //log.writeObject(best.rawCode)
       printToFile(new File("MotorDriver.perceptron")) { p =>
         best.rawCode.foreach(b =>

@@ -3,7 +3,7 @@ package motordriver
 import java.io._
 
 import neuroevolution.NeuroEvolution
-import neuroevolution.geneticalgorithm.ProblemType.Minimize
+import neuroevolution.geneticalgorithm.ProblemType
 import neuroevolution.neuralnetwork.TweakedCosine
 
 import scala.collection.mutable.ArrayBuffer
@@ -40,7 +40,7 @@ class MotorDriver extends Thread {
   val ai = new NeuroEvolution(n_Bit_Weight = 3, n_Bit_Bias = 3, numberOfNodes = Array(1, 8, 16, 8, 2), activationFunction = TweakedCosine,
     popSize = 32, pSelection = 0.1, pMutation = 0.1, aMutation = 0.03, parent_immutable = false,
     get_perceptron_inputs = get_perceptron_inputs, eval_perceptron_function = eval_perceptron_function,
-    problemType = Minimize,
+    problemType = ProblemType.Minimize,
     diversityWeight = 0.8,
     LOOP_INTERVAL = 0)
 

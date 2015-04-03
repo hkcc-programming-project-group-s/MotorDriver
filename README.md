@@ -1,1 +1,1 @@
-# motordriver.MotorDriver
+# com.codenvy.example.scala.motordriver.MotorDriver

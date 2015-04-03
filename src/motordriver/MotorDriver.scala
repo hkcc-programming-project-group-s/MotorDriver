@@ -20,6 +20,15 @@ class MotorDriver extends Thread {
   var sampleCommandPairs = new ArrayBuffer[CommandPair]
   setup
 
+  def reScale(double: Double) = {
+    (double + 1) / 2d
+  }
+
+  def reversedScale(double: Double) = {
+    double * 2d - 1
+  }
+
+
   def setup = {
     sampleCommandPairs += new CommandPair(-1d, -1d, -1d)
     sampleCommandPairs += new CommandPair(-0.75, 0d, -1d)
@@ -37,16 +46,16 @@ class MotorDriver extends Thread {
    * input: direction (range from -1 to 1)
    * output: left & right motor pwm (range from -1 to 1)
    */
-  val ai = new NeuroEvolution(n_Bit_Weight = 3, n_Bit_Bias = 3, numberOfNodes = Array(1, 8, 16, 8, 2), activationFunction = TweakedCosine,
-    popSize = 32, pSelection = 0.1, pMutation = 0.1, aMutation = 0.03, parent_immutable = false,
+  val ai = new NeuroEvolution(n_Bit_Weight = 8, n_Bit_Bias = 8, numberOfNodes = Array(1, 8, 16, 8, 2), activationFunction = TweakedCosine,
+    popSize = 100, pSelection = 0.25, pMutation = 0.1, aMutation = 0.03, parent_immutable = true,
     get_perceptron_inputs = get_perceptron_inputs, eval_perceptron_function = eval_perceptron_function,
     problemType = Minimize,
-    diversityWeight = 0.8,
-    LOOP_INTERVAL = 0)
+    diversityWeight = 0.1,
+    loopInterval = 0)
 
   def get_perceptron_inputs: Array[Array[Double]] = {
     var inputs = ArrayBuffer.empty[Array[Double]]
-    sampleCommandPairs.foreach(commandPair => inputs += Array(commandPair.direction))
+    sampleCommandPairs.foreach(commandPair => inputs += Array(reScale(commandPair.direction)))
     inputs.toArray
   }
 
@@ -54,8 +63,8 @@ class MotorDriver extends Thread {
     val direction = inputs(0)
     val left = outputs(0)
     val right = outputs(1)
-    val target = sampleCommandPairs.filter(sample => sample.direction == direction)
-    Math.pow(target(0).left - left, 2) + Math.pow(target(0).right - right, 2)
+    val target = sampleCommandPairs.filter(sample => reScale(sample.direction) == direction)
+    Math.pow(reScale(target(0).left) - left, 2) + Math.pow(reScale(target(0).right) - right, 2)
   }
 
   override def run = {
@@ -63,10 +72,13 @@ class MotorDriver extends Thread {
     //val log=new ObjectOutputStream(new FileOutputStream("MotorDriver.perceptron"))
     while (true) {
       val best = ai.ga.getBestGene
-      println("Round: "+ai.ga.round)
-      println("Best fitness: " + Math.sqrt(best.getFitness / 2d / sampleCommandPairs.length))
+      var message = "\nRound: " + ai.ga.round
+      message += "\nBest's fitness: " + Math.sqrt(best.getFitness / 2d / sampleCommandPairs.length)
+      message += "\nBest's diversity: " + best.diversity
+      message += "\nOverall diversity: " + (1 - ai.ga.diversity_weight)
+      println(message)
       //log.writeObject(best.rawCode)
-      printToFile(new File("MotorDriver.perceptron")) { p =>
+      printToFile(new File(ai.ga.round % 2 + "-MotorDriver.perceptron")) { p =>
         best.rawCode.foreach(b =>
           if (b) p.print(1)
           else p.print(0)

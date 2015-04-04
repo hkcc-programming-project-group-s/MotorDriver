@@ -1,38 +1,82 @@
 package motordriver
 
-import java.io._
-
+import motordriver.MotorDriver._
 import neuroevolution.NeuroEvolution
 import neuroevolution.geneticalgorithm.ProblemType.Minimize
-import neuroevolution.neuralnetwork.TweakedCosine
+import neuroevolution.neuralnetwork.{Perceptron, TweakedCosine}
 
 import scala.collection.mutable.ArrayBuffer
-
 
 /**
  * Created by beenotung on 4/3/15.
  */
+
+object MotorDriver {
+
+  /**
+   *
+   * @param double
+   * -1..1
+   * @return
+   * 0..1
+   */
+  def reScale(double: Double) = {
+    (double + 1) / 2d
+  }
+
+  /**
+   *
+   * @param double
+   * 0..1
+   * @return
+   * -1..1
+   */
+  def reversedScale(double: Double) = {
+    (double - 0.5) * 2
+  }
+}
+
 class MotorDriver extends Thread {
+
 
   /**
    * input: direction (range from 0 to 1)
    * output: left & right motor pwm (range from 0 to 1)
    */
-  val ai = new NeuroEvolution(n_Bit_Weight = 4, n_Bit_Bias = 4, numberOfNodes = Array(1, 4, 8, 4, 2), activationFunction = TweakedCosine,
-    popSize = 8, pSelection = 0.25, pMutationPow = 2, aMutationPow = 4, parent_immutable = true,
+  val ai = new NeuroEvolution(n_Bit_Weight = 4, n_Bit_Bias = 4, numberOfNodes = Array(1, 8,8, 1), activationFunction = TweakedCosine,
+    popSize = 32, pSelection = 0.25, pMutationPow = 2, aMutationPow = 8, parent_immutable = true,
     get_perceptron_inputs = get_perceptron_inputs, eval_perceptron_function = eval_perceptron_function,
     problemType = Minimize,
     diversityWeight = 0.1,
-    loopInterval = 0)
+    loopInterval = 0) {
+    override def evalFitness_function(rawCode: Array[Boolean]): Double = {
+      val perceptron: Perceptron = converter.decode(rawCode)
+      val inputs: Array[Array[Double]] = get_perceptron_inputs
+      val output_fitness: Array[Double] = Array.fill[Double](inputs.length)(0d)
+      inputs.indices.par.foreach(i => output_fitness(i) = checkScore(i, perceptron.run(inputs(i))))
+      val avg: Double = output_fitness.sum * 1d / output_fitness.length
+      var overallFitness: Double = avg
+      output_fitness.foreach(fitness => overallFitness += Math.pow(fitness - avg, 2))
+      overallFitness + diffCheck(perceptron) * 1000d
+    }
+  }
+
+  def diffCheck(perceptron: Perceptron): Double = {
+    val input = Utils.random.nextDouble()
+    val output1 = perceptron.run(Array(input))
+    val output2 = perceptron.run(Array(input + 11.25d / 360d))
+    Math.pow(output1(0) - output2(0),2)// + Math.pow(output1(1) - output2(1),2)
+  }
+
+  def checkScore(i: Int, outputs: Array[Double]): Double = {
+    Math.pow(reScale(sampleCommandPairs(i).left) - outputs(0), 2) //+ Math.pow(reScale(sampleCommandPairs(i).right) - outputs(1), 2)
+  }
 
   //(direction,left,right)
   var sampleCommandPairs = new ArrayBuffer[CommandPair]
 
   setup
 
-  def reversedScale(double: Double) = {
-    double * 2d - 1
-  }
 
   def setup = {
     sampleCommandPairs += new CommandPair(-1d, -1d, -1d)
@@ -52,9 +96,6 @@ class MotorDriver extends Thread {
     inputs.toArray
   }
 
-  def reScale(double: Double) = {
-    (double + 1) / 2d
-  }
 
   def eval_perceptron_function(inputs: Array[Double], outputs: Array[Double]): Double = {
     val direction = inputs(0)
@@ -73,7 +114,7 @@ class MotorDriver extends Thread {
     var lastRound: Int = nowRound
     var fileCount = 1
     var roundPerSecond = 0d
-    val alpha = 0.125
+    val alpha = 0.5
     var nowBest = ai.ga.getBestGene
     var lastBest = nowBest
     var estimatedRoundLeft = 100d
@@ -91,17 +132,18 @@ class MotorDriver extends Thread {
       message += "\nOverall diversity: \t" + (1 - ai.ga.overallDiversity)
       message += "\nImprovement: \t\t" + Math.round((nowBest.fitness - lastBest.fitness) / lastBest.fitness * 100) / 100d + "%"
       estimatedRoundLeft = estimatedRoundLeft * (1 - alpha) + alpha * Math.abs(nowBest.fitness / ((lastBest.fitness - nowBest.fitness + 0.00001) / (lastTime - nowTime)) * roundPerSecond)
-      message += "\nestimate " + estimatedRoundLeft + " round left"
+      message += "\nEstimate " + estimatedRoundLeft + " round left"
       println(message)
       //log.writeObject(best.rawCode)
       fileCount = (fileCount + 1) % 2
-      printToFile(new File(fileCount + "-MotorDriver.perceptron")) { p =>
+      /*printToFile(new File(fileCount + "-MotorDriver.perceptron")) { p =>
         nowBest.rawCode.foreach(b =>
           if (b) p.print(1)
           else p.print(0)
         )
         p.println()
-      }
+      }*/
+      ai.saveBestToFile(fileCount + "-MotorDriver", false)
       Thread.sleep(1000)
     }
   }
